@@ -67,3 +67,34 @@ Other ways to set a variable's value (in order of precedence, highest last):
 | Environment variable            | `TF_VAR_application_name=shahirsblog`         |
 | `.tfvars` file                  | `terraform apply -var-file="prod.tfvars"`     |
 | `-var` flag on the CLI          | `terraform apply -var "environment_name=dev"` |
+
+## Output values
+
+Outputs expose values from a configuration after `apply`, so you can read them from the CLI or reuse them elsewhere. They are declared with an `output` block and live in `outputs.tf`.
+
+```hcl
+output "application_name" {
+  value = var.application_name
+}
+
+output "environment_name" {
+  value = var.environment_name
+}
+
+output "environment_prefix" {
+  value = local.environment_prefix
+}
+```
+
+| Output               | Source                     | What it shows                          |
+|----------------------|----------------------------|----------------------------------------|
+| `application_name`   | `var.application_name`     | The application name passed in.        |
+| `environment_name`   | `var.environment_name`     | The environment (defaults to `dev`).   |
+| `environment_prefix` | `local.environment_prefix` | The computed environment prefix local. |
+
+After an apply, print them with:
+
+```sh
+terraform output                      # all outputs
+terraform output environment_prefix   # a single output
+```
