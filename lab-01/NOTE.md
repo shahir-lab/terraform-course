@@ -38,20 +38,33 @@ Together, `resource type` + `local name` form the **object reference**: `random_
 | `terraform destroy` | Removes all resources managed by this configuration.                |
 
 
+## Local values
+
+A `locals` block defines named expressions that are computed once and reused, referenced as `local.<name>` (note: `local`, singular). They are not inputs: they can't be set from outside the config.
+
+```hcl
+locals {
+  environment_prefix = "${var.application_name}-${var.environment_name}"
+}
+```
+
+The prefix was previously hardcoded (`"shahirsblogs-dev"`). It is now built from the input variables via string interpolation (`${...}`), so `application_name=shahirsblog` and `environment_name=dev` give `shahirsblog-dev`.
+
 ## Input variables
 
 Variables let you parameterize a configuration instead of hardcoding values. Each variable is declared with a `variable` block (type `variable`, local name is the variable's identifier), then referenced elsewhere as `var.<name>`.
 
 ```hcl
 variable "application_name" {
-  type = string
+
 }
 
 variable "environment_name" {
-  type    = string
-  default = "dev"
+
 }
 ```
+
+These are currently declared with no `type` or `default`, so Terraform treats them as untyped and **required**: it prompts for them on `plan`/`apply` unless you pass a value. Adding `type = string` and (optionally) `default = "dev"` is a good next step.
 
 You can set values at runtime with the `-var` flag on `plan`/`apply`:
 
@@ -89,7 +102,7 @@ output "environment_prefix" {
 | Output               | Source                     | What it shows                          |
 |----------------------|----------------------------|----------------------------------------|
 | `application_name`   | `var.application_name`     | The application name passed in.        |
-| `environment_name`   | `var.environment_name`     | The environment (defaults to `dev`).   |
+| `environment_name`   | `var.environment_name`     | The environment name passed in.        |
 | `environment_prefix` | `local.environment_prefix` | The computed environment prefix local. |
 
 After an apply, print them with:

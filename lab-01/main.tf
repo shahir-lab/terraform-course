@@ -1,6 +1,3 @@
-# Block Type
-# Resource Type
-# Object Refrence
 
 resource "random_string" "suffix" {
   length  = 6
@@ -9,5 +6,5 @@ resource "random_string" "suffix" {
 }
 
 locals {
-  environment_prefix = "shahirsblogs-dev"
+  environment_prefix = "${var.application_name}-${var.environment_name}"
 }

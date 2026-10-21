@@ -1,3 +1,4 @@
+
 variable "application_name" {
 
 }
