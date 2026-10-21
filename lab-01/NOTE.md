@@ -1,0 +1,40 @@
+# Lab 01 Notes
+
+## Anatomy of a resource block
+
+Every resource declaration in a `.tf` file is made of 3 parts:
+
+```hcl
+resource "random_string" "suffix" {
+  #        ^^^^^^^^^^^^^  ^^^^^^
+  #        |              |
+  #        |              Local name (how you refer to this
+  #        |              instance elsewhere in the config,
+  #        |              e.g. random_string.suffix.result)
+  #        |
+  #        Resource type (which provider/resource is being created)
+
+  length  = 6
+  upper   = false
+  special = false
+}
+```
+
+| Part               | Example          | What it means                                                   |
+|--------------------|------------------|------------------------------------------------------------------|
+| **Block type**      | `resource`       | Tells Terraform what kind of block this is (e.g. `resource`, `variable`, `provider`, `output`). |
+| **Resource type**   | `random_string`  | The specific resource being created, defined by a provider.     |
+| **Local name**      | `suffix`         | A reference name used only within this config to point back to this resource. |
+
+Together, `resource type` + `local name` form the **object reference**: `random_string.suffix`.
+
+## Useful commands
+
+| Command            | What it does                                                        |
+|---------------------|----------------------------------------------------------------------|
+| `terraform init`    | Downloads providers/modules and sets up the working directory.      |
+| `terraform plan`    | Shows what changes Terraform would make, without applying them.     |
+| `terraform apply`   | Applies the changes to reach the desired state.                     |
+| `terraform destroy` | Removes all resources managed by this configuration.                |
+
+
