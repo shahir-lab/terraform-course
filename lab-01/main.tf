@@ -7,3 +7,7 @@ resource "random_string" "suffix" {
   upper   = false
   special = false
 }
+
+locals {
+  environment_prefix = "shahirsblogs-dev"
+}
