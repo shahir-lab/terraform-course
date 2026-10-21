@@ -38,3 +38,32 @@ Together, `resource type` + `local name` form the **object reference**: `random_
 | `terraform destroy` | Removes all resources managed by this configuration.                |
 
 
+## Input variables
+
+Variables let you parameterize a configuration instead of hardcoding values. Each variable is declared with a `variable` block (type `variable`, local name is the variable's identifier), then referenced elsewhere as `var.<name>`.
+
+```hcl
+variable "application_name" {
+  type = string
+}
+
+variable "environment_name" {
+  type    = string
+  default = "dev"
+}
+```
+
+You can set values at runtime with the `-var` flag on `plan`/`apply`:
+
+```sh
+terraform plan -var "application_name=shahirsblog" -var "environment_name=dev"
+```
+
+Other ways to set a variable's value (in order of precedence, highest last):
+
+| Method                          | Example                                       |
+|---------------------------------|-----------------------------------------------|
+| Default in the `variable` block | `default = "dev"`                             |
+| Environment variable            | `TF_VAR_application_name=shahirsblog`         |
+| `.tfvars` file                  | `terraform apply -var-file="prod.tfvars"`     |
+| `-var` flag on the CLI          | `terraform apply -var "environment_name=dev"` |
