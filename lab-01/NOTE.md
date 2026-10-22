@@ -44,11 +44,11 @@ A `locals` block defines named expressions that are computed once and reused, re
 
 ```hcl
 locals {
-  environment_prefix = "${var.application_name}-${var.environment_name}"
+  environment_prefix = "${var.application_name}-${var.environment_name}-${random_string.suffix.result}"
 }
 ```
 
-The prefix was previously hardcoded (`"shahirsblogs-dev"`). It is now built from the input variables via string interpolation (`${...}`), so `application_name=shahirsblog` and `environment_name=dev` give `shahirsblog-dev`.
+The prefix was previously hardcoded (`"shahirsblogs-dev"`). It is now built from the input variables via string interpolation (`${...}`), and ends with the `random_string.suffix` result, so `application_name=shahirsblog` and `environment_name=dev` give something like `shahirsblog-dev-a1b2c3`. Referencing the resource also makes the local depend on it, so Terraform creates the suffix first.
 
 ## Input variables
 
@@ -104,6 +104,7 @@ output "environment_prefix" {
 | `application_name`   | `var.application_name`     | The application name passed in.        |
 | `environment_name`   | `var.environment_name`     | The environment name passed in.        |
 | `environment_prefix` | `local.environment_prefix` | The computed environment prefix local. |
+| `suffix`             | `random_string.suffix.result` | The generated random suffix.        |
 
 After an apply, print them with:
 
@@ -111,3 +112,20 @@ After an apply, print them with:
 terraform output                      # all outputs
 terraform output environment_prefix   # a single output
 ```
+
+## Provider version pinning
+
+Provider requirements live in `versions.tf`, in the `required_providers` block inside `terraform {}`:
+
+```hcl
+terraform {
+  required_providers {
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6.3"
+    }
+  }
+}
+```
+
+`~> 3.6.3` is the pessimistic constraint operator: it allows patch releases (`3.6.x`, at least `3.6.3`) but not `3.7.0`. `terraform init` records the selected version and checksums in `.terraform.lock.hcl`, which is why the lock file moved from `3.9.1` to `3.6.3`. Commit the lock file so everyone gets the same provider build; use `terraform init -upgrade` to move it forward.
