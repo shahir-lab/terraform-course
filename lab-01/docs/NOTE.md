@@ -78,8 +78,29 @@ Other ways to set a variable's value (in order of precedence, highest last):
 |---------------------------------|-----------------------------------------------|
 | Default in the `variable` block | `default = "dev"`                             |
 | Environment variable            | `TF_VAR_application_name=shahirsblog`         |
-| `.tfvars` file                  | `terraform apply -var-file="prod.tfvars"`     |
+| `terraform.tfvars` / `*.auto.tfvars` | `default.auto.tfvars` (loaded automatically) |
+| `-var-file` flag                | `terraform apply -var-file="env/dev.tfvars"`  |
 | `-var` flag on the CLI          | `terraform apply -var "environment_name=dev"` |
+
+### Variable files in this lab
+
+Values are supplied from `.tfvars` files instead of `-var` flags:
+
+| File                       | Contents                         | How it is loaded                          |
+|----------------------------|----------------------------------|-------------------------------------------|
+| `default.auto.tfvars`      | `application_name = "shahir-lab"` | Automatically on every `plan`/`apply`.    |
+| `env/dev.tfvars`           | `environment_name = "dev"`       | Explicitly with `-var-file`.              |
+| `env/tst.tfvars`           | `environment_name = "tst"`       | Explicitly with `-var-file`.              |
+| `env/prd.tfvars`           | `environment_name = "prod"`      | Explicitly with `-var-file`.              |
+
+Pick an environment by passing its file; the shared application name comes from the auto file:
+
+```sh
+terraform plan -var-file="env/dev.tfvars"
+terraform apply -var-file="env/prd.tfvars"
+```
+
+Note that `.gitignore` excludes `*.tfvars`, so these files are local only and are not committed.
 
 ## Output values
 
@@ -96,6 +117,10 @@ output "environment_name" {
 
 output "environment_prefix" {
   value = local.environment_prefix
+}
+
+output "suffix" {
+  value = random_string.suffix.result
 }
 ```
 
