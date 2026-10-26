@@ -154,3 +154,21 @@ terraform {
 ```
 
 `~> 3.6.3` is the pessimistic constraint operator: it allows patch releases (`3.6.x`, at least `3.6.3`) but not `3.7.0`. `terraform init` records the selected version and checksums in `.terraform.lock.hcl`, which is why the lock file moved from `3.9.1` to `3.6.3`. Commit the lock file so everyone gets the same provider build; use `terraform init -upgrade` to move it forward.
+
+
+## Environment variables as input
+
+Terraform reads any environment variable named `TF_VAR_<name>` and uses it as the value of the input variable `<name>`. A variable set this way is no longer prompted for on `plan`/`apply`.
+
+```sh
+export TF_VAR_application_name=shahirsblog
+terraform plan -var-file="env/dev.tfvars"   # no prompt for application_name
+```
+
+Things to know:
+
+- The part after `TF_VAR_` must match the variable name exactly, and it is **case-sensitive** (`TF_VAR_application_name`, not `TF_VAR_APPLICATION_NAME`).
+- Values are strings. For a `string` variable that is fine; for `list`/`map`/`object` types, pass HCL syntax, e.g. `export TF_VAR_tags='{ team = "platform" }'`.
+- This is the usual way to pass secrets (e.g. `TF_VAR_api_key`) so they stay out of committed files and the command line. Pair it with `sensitive = true` on the variable so Terraform redacts it from plan output.
+- It sits below `*.tfvars` files and `-var`/`-var-file` in precedence (see the table above), so a `.tfvars` value overrides the environment variable.
+- The export only lasts for the current shell session. To clear it: `unset TF_VAR_application_name`.
