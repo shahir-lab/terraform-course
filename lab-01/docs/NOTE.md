@@ -172,3 +172,72 @@ Things to know:
 - This is the usual way to pass secrets (e.g. `TF_VAR_api_key`) so they stay out of committed files and the command line. Pair it with `sensitive = true` on the variable so Terraform redacts it from plan output.
 - It sits below `*.tfvars` files and `-var`/`-var-file` in precedence (see the table above), so a `.tfvars` value overrides the environment variable.
 - The export only lasts for the current shell session. To clear it: `unset TF_VAR_application_name`.
+
+## Terraform workspaces
+
+A workspace is a named instance of state for the same configuration. One set of `.tf` files can manage several independent copies of your infrastructure (e.g. `dev`, `tst`), each with its own state file. Every config starts with a single workspace called `default`, which cannot be deleted.
+
+### Commands
+
+| Command                                      | What it does                                              |
+|----------------------------------------------|-----------------------------------------------------------|
+| `terraform workspace list`                   | Lists all workspaces; the current one is marked with `*`. |
+| `terraform workspace show`                   | Prints only the current workspace name.                   |
+| `terraform workspace new <workspace-name>`   | Creates a workspace and switches to it.                   |
+| `terraform workspace select <workspace-name>`| Switches to an existing workspace.                        |
+| `terraform workspace delete <workspace-name>`| Deletes a workspace (must not be the current one, and should have no resources left; destroy first). |
+
+```sh
+terraform workspace list
+# * default
+#   dev
+#   tst
+
+terraform workspace new dev
+terraform workspace select tst
+```
+
+### Where state is stored
+
+With the default local backend, each workspace gets its own state file:
+
+| Workspace | State file                              |
+|-----------|-----------------------------------------|
+| `default` | `terraform.tfstate`                     |
+| `dev`     | `terraform.tfstate.d/dev/terraform.tfstate` |
+| `tst`     | `terraform.tfstate.d/tst/terraform.tfstate` |
+
+The currently selected workspace name is saved in `.terraform/environment`. Because state is separate, `apply` in `dev` never touches resources tracked by `tst`, even though the code is identical.
+
+### Using the workspace name in config
+
+The current workspace is available as `terraform.workspace`, so it can drive naming instead of (or alongside) `environment_name`:
+
+```hcl
+locals {
+  environment_prefix = "${var.application_name}-${terraform.workspace}-${random_string.suffix.result}"
+}
+```
+
+### Workspaces with the tfvars files in this lab
+
+Workspaces switch the **state**, not the **variables**. Pair them with the matching `-var-file` so the two stay in sync:
+
+```sh
+terraform workspace select dev
+terraform plan -var-file="env/dev.tfvars"
+
+terraform workspace select tst
+terraform plan -var-file="env/tst.tfvars"
+```
+
+Mixing them up (e.g. the `tst` workspace with `env/dev.tfvars`) is easy and Terraform will not warn you, so check `terraform workspace show` before `apply`.
+
+### Things to know
+
+- Workspaces share the same backend and the same code and provider versions; they only separate state.
+- They are fine for light separation like dev/tst of the same config, but are not a security boundary. For prod, many teams prefer separate directories or backends with separate credentials.
+- The local `.gitignore`d state files are not backed up. Use a remote backend before relying on workspaces for anything real.
+- `terraform destroy` only affects the current workspace.
+
+<!-- MODIFY AFTER THIS LINE -->
