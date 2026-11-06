@@ -55,3 +55,12 @@ output "kind" {
 output "tier" {
   value = var.sku_settings.tier
 }
+
+output "regionA" {
+  value = module.regional_stamp["foo"].name
+}
+
+output "regionB" {
+  value = module.regional_stamp["bar"].name
+}
+
