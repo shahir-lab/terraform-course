@@ -240,4 +240,105 @@ Mixing them up (e.g. the `tst` workspace with `env/dev.tfvars`) is easy and Terr
 - The local `.gitignore`d state files are not backed up. Use a remote backend before relying on workspaces for anything real.
 - `terraform destroy` only affects the current workspace.
 
+## Variable validation
+
+A `validation` block inside a `variable` enforces a constraint on the input before anything uses it. If `condition` evaluates to `false`, Terraform fails immediately with `error_message` instead of letting a bad value flow into a resource.
+
+```hcl
+variable "application_name" {
+  type = string
+
+  validation {
+    condition     = length(var.application_name) <= 12 && length(var.application_name) > 0
+    error_message = "The Application name must be less than 12 characters and not empty"
+  }
+}
+```
+
+`instance_count`'s validation references `local.min_nodes`/`local.max_nodes`, defined in a separate file, `validation.tf`:
+
+```hcl
+# validation.tf
+locals {
+  max_nodes = 9
+  min_nodes = 5
+}
+```
+
+```hcl
+variable "instance_count" {
+  type = number
+
+  validation {
+    condition     = var.instance_count > local.min_nodes && var.instance_count <= local.max_nodes && var.instance_count % 2 != 0
+    error_message = "The instance count must be greater than ${local.min_nodes} and less than or equal to ${local.max_nodes} and must be odd"
+  }
+}
+```
+
+Things to know:
+
+- A `condition` can reference other already-known values (like `local.min_nodes`), not just the variable being validated.
+- Splitting `validation.tf` out from `variables.tf` is purely organizational — Terraform merges every `.tf` file in a directory before evaluating anything, so file boundaries don't change behavior, only readability.
+
+## Typed and collection variables
+
+`variables.tf` declares several variable types beyond `string`, each with a matching output in `outputs.tf`:
+
+| Variable | Type | Example value | Access pattern |
+|---|---|---|---|
+| `enabled` | `bool` | `true` | `var.enabled` |
+| `regions` | `list(string)` | `["us-east-1", "us-west-2"]` | `var.regions[0]` — index by position |
+| `region_instance_count` | `map(string)` | `{ "us-east-1" = 2, ... }` | `var.region_instance_count["us-east-1"]` — index by key |
+| `region_set` | `set(string)` | `["us-east-1", "us-west-2"]` | unordered, no `[0]` indexing |
+| `sku_settings` | `object({ kind = string, tier = string })` | `{ kind = "standard", tier = "basic" }` | `var.sku_settings.kind` — dot access, fixed schema |
+
+Outputs combine these to derive new values:
+
+```hcl
+output "primary_region_instance_count" {
+  value = var.region_instance_count[var.regions[0]]
+}
+```
+
+This looks up the instance count for whichever region is first in `regions` — a map lookup keyed by a list element, not a hardcoded string.
+
+Things to know:
+
+- `list` preserves order and allows duplicates; `set` does not preserve order and de-duplicates. The `.tfvars` files write `region_set` using list syntax (`[...]`), but Terraform coerces it to a set because of the declared type.
+- `object({...})` is a fixed schema: every declared attribute must be present with a matching type, unlike `map(string)` which accepts any keys.
+- `api_key` is declared `sensitive = true`. Terraform redacts it from `plan`/`apply` output and from a bare `terraform output`; you have to ask for it by name (`terraform output api_key`) to see it. It has no default, so its value has to come from somewhere not committed to git (e.g. `TF_VAR_api_key`).
+
+## Child modules
+
+`modules/regional-stamp` is a **child module**: a self-contained set of `.tf` files that `main.tf` calls into with a `module` block. It has its own `variables.tf` (inputs), `main.tf` (resources), and `outputs.tf` (what it exposes back to the caller) — the same shape as the root module, just nested in a directory.
+
+```hcl
+module "regional_stamp" {
+  source = "./modules/regional-stamp"
+
+  for_each = local.regional_stamp
+
+  region         = each.value.region
+  min_node_count = each.value.min_node_count
+  max_node_count = each.value.max_node_count
+  name           = each.key
+}
+```
+
+- `source = "./modules/regional-stamp"` is a local path source. Terraform also supports registry, git, and other remote sources.
+- `for_each = local.regional_stamp` creates one module instance per entry in that map (`foo`, `bar`) instead of writing the `module` block out twice.
+- Inside the `for_each`, `each.key` is the map key (`"foo"`, `"bar"`) and `each.value` is that entry's object — identical semantics to `for_each` on a resource.
+- Because `for_each` is used, instances are addressed by key — `module.regional_stamp["foo"]` — rather than a single `module.regional_stamp`.
+
+Reading a module instance's output back in the root module:
+
+```hcl
+output "regionA" {
+  value = module.regional_stamp["foo"].name
+}
+```
+
+`modules/rando` is a second, simpler child module (just a `random_string` wrapped with an output) that exists in the repo but isn't currently called from `main.tf`.
+
 <!-- MODIFY AFTER THIS LINE -->

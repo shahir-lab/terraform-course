@@ -2,16 +2,57 @@
 
 ## What this lab builds
 
-A single `azurerm_resource_group` resource, declared in `main.tf`:
+`main.tf` has grown from a single resource group into three resources that together provision a storage account with a container in it:
 
 ```hcl
 resource "azurerm_resource_group" "main" {
-  name     = "rg-terraform-lab02"
-  location = "westus3"
+  name     = "rg-${var.application_name}-${var.environment_name}"
+  location = var.primary_location
+}
+
+resource "random_string" "suffix" {
+  length  = 10
+  upper   = false
+  special = false
+}
+
+resource "azurerm_storage_account" "main" {
+  name                     = "st${random_string.suffix.result}"
+  resource_group_name      = azurerm_resource_group.main.name
+  location                 = azurerm_resource_group.main.location
+  account_tier             = "Standard"
+  account_replication_type = "GRS"
+}
+
+resource "azurerm_storage_container" "tfstate" {
+  name                  = "tfstate"
+  storage_account_id    = azurerm_storage_account.main.id
+  container_access_type = "private"
 }
 ```
 
-The focus of this lab isn't the resource itself but getting the `azurerm` provider authenticated against an actual Azure subscription.
+The resource group name/location were originally hardcoded (`rg-terraform-lab02` / `westus3`); the focus of this lab was (and still is) getting the `azurerm` provider authenticated against an actual Azure subscription. The config has since grown to also cover naming with variables + random suffixes and provisioning real storage resources — same variable pattern as [Lab 01](../../LAB01/docs/NOTE.md), now applied to Azure resources instead of plain outputs.
+
+### Naming and the storage account/container
+
+- Storage account **names must be globally unique across all of Azure**, lowercase letters/numbers only, 3–24 characters — that's why `random_string.suffix` (10 chars, lowercase, no special characters) is appended: `st${random_string.suffix.result}`.
+- `azurerm_storage_container.tfstate` creates a blob container named `tfstate` inside the storage account, referenced via `storage_account_id`. `container_access_type = "private"` means blobs aren't publicly readable — access needs an authenticated request (CLI auth, a SAS token, or an RBAC role on the account).
+- A container named `tfstate` is the conventional home for Terraform remote state blobs. [Lab 03](../../LAB03/docs/NOTE.md) and [Lab 04](../../LAB04/docs/NOTE.md) both declare `backend "azurerm" {}` and point at a `tfstate` container at init time — this storage account is the natural backend target for that pattern, even though this lab's own state is still local.
+
+### Variables used here
+
+`variables.tf` declares three required `string` inputs, same shape as [Lab 01](../../LAB01/docs/NOTE.md): `application_name`, `environment_name`, `primary_location`. Values are split across two different `.tfvars` files instead of one `-var-file` per environment:
+
+| File | Contents | How it's loaded |
+|---|---|---|
+| `terraform.tfvars` | `application_name`, `primary_location` | Automatically — Terraform always loads a file literally named `terraform.tfvars` if present. |
+| `env/dev.tfvars` | `environment_name` | Explicitly, via `-var-file="env/dev.tfvars"`. |
+
+```sh
+terraform plan -var-file="env/dev.tfvars"
+```
+
+The idea: values that don't change per environment (`application_name`, `primary_location`) live in the auto-loaded file; the one that does change per environment (`environment_name`) is passed explicitly, so switching environments only means swapping one flag.
 
 ## Provider requirements
 
@@ -113,7 +154,8 @@ Terraform checks, roughly in this order: explicit arguments in the `provider` bl
 ## Things to know
 
 - `terraform.tfstate` now contains the real Azure subscription ID and resource IDs — it's already covered by this repo's `.gitignore` (`*.tfstate`), so verify with `git status --ignored` rather than assuming.
-- `variables.tf` and `outputs.tf` exist but are currently empty — natural next step is parameterizing `name`/`location` as variables and outputting the resource group's `id`, following the pattern from Lab 01.
-- Location (`westus3`) is hardcoded; `az account list-locations -o table` lists valid values if changing it.
+- `outputs.tf` exists but is currently empty — a natural next step is outputting the storage account name and container ID, since later labs will need to reference them for their remote backend config.
+- `primary_location` defaults to `westus3` via `terraform.tfvars`; `az account list-locations -o table` lists valid values if changing it.
+- `account_replication_type = "GRS"` (geo-redundant storage) is a reasonable choice for a storage account meant to hold Terraform state — it survives a regional outage, unlike `LRS` (locally redundant).
 
 <!-- MODIFY AFTER THIS LINE -->

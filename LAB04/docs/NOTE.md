@@ -1,5 +1,42 @@
 # Lab 04 — Key Vault with RBAC Authorization
 
+## What this lab builds
+
+The full `main.tf`, in order:
+
+```hcl
+resource "azurerm_resource_group" "main" {
+  name     = "rg-${var.application_name}-${var.environment_name}"
+  location = var.primary_location
+}
+
+resource "random_string" "keyvault_suffix" {
+  length  = 6
+  upper   = false
+  special = false
+}
+
+data "azurerm_client_config" "current" {}
+
+resource "azurerm_key_vault" "main" {
+  name                       = "kv-${var.application_name}-${var.environment_name}-${random_string.keyvault_suffix.result}"
+  location                   = azurerm_resource_group.main.location
+  resource_group_name        = azurerm_resource_group.main.name
+  tenant_id                  = data.azurerm_client_config.current.tenant_id
+  sku_name                   = "standard"
+  rbac_authorization_enabled = true
+}
+
+resource "azurerm_role_assignment" "terraform_user" {
+  scope                = azurerm_key_vault.main.id
+  role_definition_name = "Key Vault Administrator"
+  principal_id         = data.azurerm_client_config.current.object_id
+}
+```
+
+- Same resource group pattern as [Lab 02](../../LAB02/docs/NOTE.md)/[Lab 03](../../LAB03/docs/NOTE.md): name built from `application_name`/`environment_name`.
+- `random_string.keyvault_suffix` exists for the same reason as Lab 02's storage account suffix — **Key Vault names must be globally unique across Azure**, so a hardcoded name would collide with anyone else's vault. 6 characters is Key Vault's historical convention here, shorter than the 10-character suffix used for storage accounts since vault names allow up to 24 characters total and the rest of the name (`kv-<app>-<env>-`) is already fairly long.
+
 ## What I Learned
 
 This lab builds an Azure Key Vault and shows that creating a Key Vault does not automatically give anyone permission to read or write secrets inside it. Access to vault *data* (secrets, keys, certificates) is a separate concern from creating the vault *resource*, and under RBAC authorization that access has to be granted explicitly with its own resource.
@@ -29,5 +66,9 @@ resource "azurerm_role_assignment" "terraform_user" {
   principal_id         = data.azurerm_client_config.current.object_id
 }
 ```
+
+## Remote backend and the `.debug-*.sh` scripts
+
+Same setup as [Lab 03](../../LAB03/docs/NOTE.md): `versions.tf` declares an empty `backend "azurerm" {}`, and each `.debug-<env>.sh` script fills it in at `terraform init` time with `-backend-config` flags, then runs Terraform and tears down the local `.terraform` cache. `environment_name` is also supplied by the script (`TF_VAR_environment_name`) rather than a `.tfvars` file, which is why `env/dev.tfvars` is empty here — only `primary_location` comes from the committed `terraform.tfvars`.
 
 <!-- MODIFY AFTER THIS LINE -->
